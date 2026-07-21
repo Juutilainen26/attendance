@@ -1,9 +1,13 @@
 /* ===========================================================
    출석률 계산 엔진
-   - 결근(하루 통째) = 1.00
-   - 지각 = 0.33, 조퇴 = 0.33  (3회 = 약 1일)
+   - 결근(하루 통째) = 1일
+   - 지각 / 조퇴 = 3회당 정확히 1일
+     (0.33씩 더하면 3회에 0.99가 되므로, 횟수를 정수로 세어
+      마지막에 한 번만 3으로 나눈다. 3회 = 1.0, 6회 = 2.0)
    - 영업일 = 평일(월~금) 중 법정공휴일 제외
    =========================================================== */
+
+var TARDY_PER_DAY = 3;   // 지각·조퇴 몇 회를 1일로 칠 것인가
 
 // 한국 법정공휴일 (대체공휴일 포함). MMDD 형식.
 var HOLIDAYS = {
@@ -16,7 +20,14 @@ var HOLIDAYS = {
   "2031": ["0101","0122","0123","0124","0301","0303","0505","0528","0606","0815","0930","1001","1002","1003","1009","1225"]
 };
 
-var MARK_COST = { none: 0, absent: 1, late: 0.33, early: 0.33, both: 0.66 };
+// d = 결근 일수, t = 지각·조퇴 횟수
+var MARK_UNITS = {
+  none:   { d: 0, t: 0 },
+  absent: { d: 1, t: 0 },
+  late:   { d: 0, t: 1 },
+  early:  { d: 0, t: 1 },
+  both:   { d: 0, t: 2 }
+};
 var MARK_LABEL = { absent: "결근", late: "지각", early: "조퇴", both: "지각+조퇴" };
 var MARK_CYCLE = ["none", "absent", "late", "early", "both"];
 
@@ -72,21 +83,23 @@ function calculate(schedule, baseDate, offset) {
   var off = schedule.customOff || [];
   var marks = schedule.marks || {};
 
-  var total = 0, used = 0, elapsedBiz = 0, remainBiz = 0;
+  var total = 0, absentDays = 0, tardyCount = 0, elapsedBiz = 0, remainBiz = 0;
   var today = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
 
   eachDay(p.start, p.end, function (d) {
     if (!isBusinessDay(d, off)) return;
     total += 1;
-    var k = ymd(d);
-    if (marks[k]) used += (MARK_COST[marks[k]] || 0);
+    var u = MARK_UNITS[marks[ymd(d)]];
+    if (u) { absentDays += u.d; tardyCount += u.t; }
     if (d <= today) elapsedBiz += 1; else remainBiz += 1;
   });
 
-  used = Math.round(used * 100) / 100;
+  // 정수로 모아서 마지막에 한 번만 나눈다 → 3회는 정확히 1.0
+  var used = absentDays + tardyCount / TARDY_PER_DAY;
+
   var rate = total === 0 ? 100 : ((total - used) / total) * 100;
-  var budget = total * (1 - th);            // 이 회차에 쓸 수 있는 총 결근 한도
-  var left = budget - used;                 // 앞으로 더 쉴 수 있는 일수
+  var budget = total * (1 - th);             // 이 회차에 쓸 수 있는 총 결근 한도
+  var left = budget - used;                  // 앞으로 더 쉴 수 있는 일수
   var cappedLeft = Math.min(left, remainBiz); // 남은 영업일보다 많이 쉴 수는 없음
 
   return {
@@ -94,19 +107,25 @@ function calculate(schedule, baseDate, offset) {
     totalBiz: total,
     elapsedBiz: elapsedBiz,
     remainBiz: remainBiz,
-    used: used,
+    absentDays: absentDays,
+    tardyCount: tardyCount,
+    used: Math.round(used * 100) / 100,
+    usedExact: used,
     rate: Math.round(rate * 100) / 100,
     budget: Math.round(budget * 100) / 100,
     left: Math.round(left * 100) / 100,
+    leftExact: left,
     leftCapped: Math.round(Math.max(0, cappedLeft) * 100) / 100,
-    leftLateCount: Math.floor(Math.max(0, left) / 0.33), // 지각/조퇴로 환산한 횟수
+    // 남은 여유를 지각·조퇴 횟수로 환산 (버림)
+    leftTardyCount: Math.floor(Math.max(0, left) * TARDY_PER_DAY + 1e-9),
     safe: rate >= (th * 100) - 1e-9,
     threshold: th * 100
   };
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { HOLIDAYS: HOLIDAYS, MARK_COST: MARK_COST, MARK_CYCLE: MARK_CYCLE, MARK_LABEL: MARK_LABEL,
+  module.exports = { HOLIDAYS: HOLIDAYS, MARK_UNITS: MARK_UNITS, MARK_CYCLE: MARK_CYCLE, MARK_LABEL: MARK_LABEL,
+    TARDY_PER_DAY: TARDY_PER_DAY,
     ymd: ymd, parseYmd: parseYmd, addDays: addDays, isHoliday: isHoliday, isBusinessDay: isBusinessDay,
     getPeriod: getPeriod, calculate: calculate, daysInMonth: daysInMonth, pad2: pad2 };
 }

@@ -173,7 +173,7 @@
 
     var sub2 = r.left <= 0
       ? "한도 초과 · 더 쉬면 안 됩니다"
-      : "지각·조퇴로는 " + r.leftLateCount + "회";
+      : "지각·조퇴로는 " + r.leftTardyCount + "회";
 
     var h = "";
     h += '<div class="periodbar">'
@@ -199,17 +199,21 @@
     h += '<div class="stats">'
        + row("기간 내 영업일", r.totalBiz + "일")
        + row("쉴 수 있는 총 한도", fmt(r.budget) + "일")
-       + row("지금까지 사용", fmt(r.used) + "일")
+       + row("지금까지 사용", fmt(r.used) + "일"
+             + (r.tardyCount ? '<span style="color:var(--tx3);font-weight:500"> (결근 ' + r.absentDays
+                + '일 + 지각·조퇴 ' + r.tardyCount + '회)</span>' : ""))
        + row("남은 여유", (r.left<0?"-":"") + fmt(Math.abs(r.left)) + "일", r.left<=0?"var(--bad)":"")
        + row("남은 영업일", r.remainBiz + "일")
        + '</div>';
 
     h += '<div class="calwrap"><div class="cal" id="cal"></div>'
        + '<div class="legend">'
-       + '<span><i style="background:rgba(255,92,108,.9)"></i>결근 1.0</span>'
-       + '<span><i style="background:rgba(255,182,72,.85)"></i>지각 0.33</span>'
-       + '<span><i style="background:rgba(126,153,255,.85)"></i>조퇴 0.33</span>'
-       + '<span><i style="background:rgba(200,120,255,.85)"></i>둘다 0.66</span>'
+       + '<span><i style="background:rgba(255,92,108,.9)"></i>결근 = 1일</span>'
+       + '<span><i style="background:rgba(255,182,72,.85)"></i>지각 1회</span>'
+       + '<span><i style="background:rgba(126,153,255,.85)"></i>조퇴 1회</span>'
+       + '<span><i style="background:rgba(200,120,255,.85)"></i>둘다 2회</span>'
+       + '<span style="width:100%;text-align:center;color:var(--tx3);margin-top:2px">'
+       + '지각·조퇴는 <b style="color:var(--tx2)">3회 = 1일</b></span>'
        + '</div><p class="hint">날짜를 누를 때마다 결근 → 지각 → 조퇴 → 둘다 → 해제 순으로 바뀝니다<br>'
        + '길게 누르면 회사 휴무일로 지정 / 해제됩니다</p></div>';
 
