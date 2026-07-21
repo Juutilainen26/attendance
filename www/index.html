@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#12141a">
+<title>출석률 관리</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  :root{
+    --bg:#12141a; --card:#1c1f28; --card2:#242833; --line:#2f3441;
+    --tx:#e8eaf0; --tx2:#9aa2b5; --tx3:#5f6779;
+    --ok:#3ddc97; --warn:#ffb648; --bad:#ff5c6c; --accent:#5b8cff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",Roboto,sans-serif;}
+  body{padding:0 14px calc(28px + env(safe-area-inset-bottom)); max-width:520px; margin:0 auto;}
+  header{padding:calc(14px + env(safe-area-inset-top)) 0 10px; display:flex; align-items:center; gap:8px;}
+  header h1{font-size:17px; margin:0; font-weight:700; letter-spacing:-.3px; flex:1;}
+  .iconbtn{background:var(--card); border:1px solid var(--line); color:var(--tx2);
+    width:34px; height:34px; border-radius:10px; font-size:16px; line-height:1; cursor:pointer;}
+  .iconbtn:active{background:var(--card2);}
+
+  /* 스케줄 탭 */
+  #tabs{display:flex; gap:7px; overflow-x:auto; padding-bottom:12px; scrollbar-width:none;}
+  #tabs::-webkit-scrollbar{display:none;}
+  .tab{flex:0 0 auto; padding:8px 14px; border-radius:999px; background:var(--card);
+    border:1px solid var(--line); color:var(--tx2); font-size:13.5px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .tab.on{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .tab.add{color:var(--tx3); padding:8px 13px;}
+
+  /* 기간 네비 */
+  .periodbar{display:flex; align-items:center; justify-content:space-between;
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 6px; margin-bottom:12px;}
+  .periodbar button{background:none;border:none;color:var(--tx2);font-size:19px;width:40px;height:30px;cursor:pointer;}
+  .periodbar .lbl{font-size:14px; font-weight:700; text-align:center; line-height:1.35;}
+  .periodbar .lbl small{display:block; font-size:11px; color:var(--tx3); font-weight:500; margin-top:1px;}
+
+  /* 대형 지표 */
+  .hero{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;}
+  .metric{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 12px 13px; text-align:center;}
+  .metric .cap{font-size:11.5px; color:var(--tx2); font-weight:600; letter-spacing:-.2px;}
+  .metric .big{font-size:40px; font-weight:800; letter-spacing:-2px; line-height:1.1; margin:5px 0 2px;
+    font-variant-numeric:tabular-nums;}
+  .metric .big span{font-size:17px; font-weight:700; letter-spacing:0; margin-left:1px;}
+  .metric .sub{font-size:11px; color:var(--tx3); min-height:14px;}
+
+  .bar{height:9px; background:#000; border-radius:99px; overflow:hidden; position:relative; margin-bottom:6px;}
+  .bar i{position:absolute; left:0; top:0; bottom:0; border-radius:99px; transition:width .25s;}
+  .bar u{position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--tx2); opacity:.85;}
+  .barnote{display:flex; justify-content:space-between; font-size:11px; color:var(--tx3); margin-bottom:14px;}
+
+  /* 요약 */
+  .stats{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 14px; margin-bottom:14px;}
+  .row{display:flex; justify-content:space-between; align-items:center; padding:10px 0; font-size:13.5px; border-bottom:1px solid var(--line);}
+  .row:last-child{border-bottom:none;}
+  .row .k{color:var(--tx2);} .row .v{font-weight:700; font-variant-numeric:tabular-nums;}
+
+  /* 달력 */
+  .calwrap{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 10px 10px; margin-bottom:12px;}
+  .cal{display:grid; grid-template-columns:repeat(7,1fr); gap:3px;}
+  .dow{text-align:center; font-size:11px; color:var(--tx3); padding-bottom:5px; font-weight:600;}
+  .dow.s{color:#ff8a94;} .dow.t{color:#84a9ff;}
+  .cell{aspect-ratio:1/1.08; border-radius:9px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; font-size:13px; background:var(--card2); color:var(--tx); cursor:pointer;
+    border:1.5px solid transparent; position:relative; font-variant-numeric:tabular-nums;}
+  .cell.out{background:transparent; color:#3a4050; cursor:default;}
+  .cell.off{background:#181b23; color:#5a6172; cursor:default;}
+  .cell.today{border-color:var(--accent);}
+  .cell .tag{font-size:8.5px; font-weight:800; line-height:1; margin-top:2px;}
+  .cell.m-absent{background:rgba(255,92,108,.9); color:#fff;}
+  .cell.m-late{background:rgba(255,182,72,.85); color:#2a1c00;}
+  .cell.m-early{background:rgba(126,153,255,.85); color:#0e1330;}
+  .cell.m-both{background:rgba(200,120,255,.85); color:#1b0930;}
+  .cell.hol{color:#ff8a94;}
+  .legend{display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin-top:11px; font-size:10.5px; color:var(--tx2);}
+  .legend i{display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:3px; vertical-align:-1px;}
+  .hint{font-size:11px; color:var(--tx3); text-align:center; margin:8px 0 0;}
+
+  /* 시트 */
+  .mask{position:fixed; inset:0; background:rgba(0,0,0,.65); display:none; z-index:20;}
+  .mask.on{display:block;}
+  .sheet{position:fixed; left:0; right:0; bottom:0; background:var(--card); z-index:21;
+    border-radius:20px 20px 0 0; padding:18px 18px calc(24px + env(safe-area-inset-bottom));
+    max-width:520px; margin:0 auto; transform:translateY(100%); transition:transform .22s; max-height:88vh; overflow:auto;}
+  .sheet.on{transform:translateY(0);}
+  .sheet h2{font-size:15px; margin:0 0 14px;}
+  label{display:block; font-size:12px; color:var(--tx2); margin:12px 0 5px; font-weight:600;}
+  input,select{width:100%; background:var(--card2); border:1px solid var(--line); color:var(--tx);
+    border-radius:10px; padding:11px 12px; font-size:15px; font-family:inherit;}
+  .btn{width:100%; padding:13px; border-radius:12px; border:none; background:var(--accent); color:#fff;
+    font-size:15px; font-weight:700; margin-top:16px; cursor:pointer; font-family:inherit;}
+  .btn.sec{background:var(--card2); color:var(--tx2); border:1px solid var(--line); margin-top:8px;}
+  .btn.del{background:transparent; color:var(--bad); border:1px solid rgba(255,92,108,.35); margin-top:8px;}
+  .empty{text-align:center; color:var(--tx3); padding:60px 20px; font-size:14px; line-height:1.7;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="title">출석률 관리</h1>
+  <button class="iconbtn" id="btnEdit" title="설정">⚙</button>
+  <button class="iconbtn" id="btnData" title="백업">⇅</button>
+</header>
+
+<div id="tabs"></div>
+<div id="main"></div>
+
+<div class="mask" id="mask"></div>
+
+<div class="sheet" id="sheetEdit">
+  <h2 id="editTitle">스케줄 설정</h2>
+  <label>이름</label>
+  <input id="fName" placeholder="예: 본사 근무">
+  <label>매달 시작하는 날짜 (1~31)</label>
+  <input id="fDay" type="number" min="1" max="31" inputmode="numeric">
+  <label>유지해야 하는 최소 출석률 (%)</label>
+  <input id="fTh" type="number" min="1" max="100" step="1" inputmode="numeric">
+  <button class="btn" id="fSave">저장</button>
+  <button class="btn del" id="fDel">이 스케줄 삭제</button>
+  <button class="btn sec" id="fCancel">닫기</button>
+</div>
+
+<div class="sheet" id="sheetData">
+  <h2>백업 / 복원</h2>
+  <p style="font-size:12.5px;color:var(--tx2);line-height:1.7;margin:0">
+    기기를 바꾸거나 앱을 지우기 전에 반드시 내보내기 하세요.<br>
+    내려받은 파일을 다시 불러오면 그대로 복원됩니다.</p>
+  <button class="btn" id="dExp">데이터 내보내기</button>
+  <button class="btn sec" id="dImp">파일에서 불러오기</button>
+  <input type="file" id="dFile" accept="application/json,.json" style="display:none">
+  <button class="btn sec" id="dCancel">닫기</button>
+</div>
+
+<script src="engine.js"></script>
+<script>
+(function(){
+  var KEY = "attendance_v1";
+  var state = load();
+  var offset = 0;
+
+  function load(){
+    try{
+      var s = JSON.parse(localStorage.getItem(KEY));
+      if(s && s.schedules && s.schedules.length) return s;
+    }catch(e){}
+    return { cur:0, schedules:[
+      { id:id(), name:"스케줄 1", startDay:1, threshold:80, marks:{}, customOff:[] },
+      { id:id(), name:"스케줄 2", startDay:15, threshold:80, marks:{}, customOff:[] }
+    ]};
+  }
+  function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+  function id(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+  function cur(){ return state.schedules[state.cur]; }
+  function fmt(n){ return (Math.round(n*100)/100).toString(); }
+  function md(d){ return (d.getMonth()+1) + "." + d.getDate(); }
+
+  /* ---------- 렌더 ---------- */
+  function render(){
+    renderTabs();
+    var s = cur();
+    if(!s){ document.getElementById("main").innerHTML =
+      '<div class="empty">스케줄이 없습니다.<br>위 <b>+</b> 를 눌러 하나 만드세요.</div>'; return; }
+
+    var today = new Date();
+    var r = calculate(s, today, offset);
+    document.getElementById("title").textContent = s.name;
+
+    var pct = Math.max(0, Math.min(100, r.rate));
+    var color = r.rate >= r.threshold ? (r.rate >= r.threshold + 5 ? "var(--ok)" : "var(--warn)") : "var(--bad)";
+    var leftColor = r.left <= 0 ? "var(--bad)" : (r.left < 1 ? "var(--warn)" : "var(--ok)");
+
+    var sub2 = r.left <= 0
+      ? "한도 초과 · 더 쉬면 안 됩니다"
+      : "지각·조퇴로는 " + r.leftLateCount + "회";
+
+    var h = "";
+    h += '<div class="periodbar">'
+       + '<button id="pPrev">‹</button>'
+       + '<div class="lbl">' + r.start.getFullYear() + "." + E2(r.start.getMonth()+1) + "." + E2(r.start.getDate())
+       + " ~ " + E2(r.end.getMonth()+1) + "." + E2(r.end.getDate())
+       + '<small>' + (offset===0 ? "이번 회차" : (offset<0 ? Math.abs(offset)+"회차 전" : offset+"회차 후"))
+       + ' · 영업일 ' + r.totalBiz + '일</small></div>'
+       + '<button id="pNext">›</button></div>';
+
+    h += '<div class="hero">'
+       + '<div class="metric"><div class="cap">현재 출석률</div>'
+       + '<div class="big" style="color:' + color + '">' + fmt(r.rate) + '<span>%</span></div>'
+       + '<div class="sub">기준 ' + r.threshold + '%</div></div>'
+       + '<div class="metric"><div class="cap">더 쉴 수 있는 일수</div>'
+       + '<div class="big" style="color:' + leftColor + '">' + fmt(Math.max(0,r.left)) + '<span>일</span></div>'
+       + '<div class="sub">' + sub2 + '</div></div></div>';
+
+    h += '<div class="bar"><i style="width:' + pct + '%;background:' + color + '"></i>'
+       + '<u style="left:' + r.threshold + '%"></u></div>'
+       + '<div class="barnote"><span>0%</span><span>기준선 ' + r.threshold + '%</span><span>100%</span></div>';
+
+    h += '<div class="stats">'
+       + row("기간 내 영업일", r.totalBiz + "일")
+       + row("쉴 수 있는 총 한도", fmt(r.budget) + "일")
+       + row("지금까지 사용", fmt(r.used) + "일")
+       + row("남은 여유", (r.left<0?"-":"") + fmt(Math.abs(r.left)) + "일", r.left<=0?"var(--bad)":"")
+       + row("남은 영업일", r.remainBiz + "일")
+       + '</div>';
+
+    h += '<div class="calwrap"><div class="cal" id="cal"></div>'
+       + '<div class="legend">'
+       + '<span><i style="background:rgba(255,92,108,.9)"></i>결근 1.0</span>'
+       + '<span><i style="background:rgba(255,182,72,.85)"></i>지각 0.33</span>'
+       + '<span><i style="background:rgba(126,153,255,.85)"></i>조퇴 0.33</span>'
+       + '<span><i style="background:rgba(200,120,255,.85)"></i>둘다 0.66</span>'
+       + '</div><p class="hint">날짜를 누를 때마다 결근 → 지각 → 조퇴 → 둘다 → 해제 순으로 바뀝니다<br>'
+       + '길게 누르면 회사 휴무일로 지정 / 해제됩니다</p></div>';
+
+    document.getElementById("main").innerHTML = h;
+    document.getElementById("pPrev").onclick = function(){ offset--; render(); };
+    document.getElementById("pNext").onclick = function(){ offset++; render(); };
+    drawCal(s, r);
+  }
+  function E2(n){ return (n<10?"0":"")+n; }
+  function row(k,v,c){ return '<div class="row"><span class="k">'+k+'</span><span class="v"'
+    + (c?' style="color:'+c+'"':'') + '>'+v+'</span></div>'; }
+
+  function renderTabs(){
+    var t = document.getElementById("tabs"), h = "";
+    state.schedules.forEach(function(s,i){
+      h += '<div class="tab' + (i===state.cur?" on":"") + '" data-i="' + i + '">' + esc(s.name) + '</div>';
+    });
+    h += '<div class="tab add" id="tabAdd">＋</div>';
+    t.innerHTML = h;
+    [].forEach.call(t.querySelectorAll(".tab[data-i]"), function(el){
+      el.onclick = function(){ state.cur = +el.dataset.i; offset = 0; save(); render(); };
+    });
+    document.getElementById("tabAdd").onclick = function(){
+      state.schedules.push({ id:id(), name:"스케줄 "+(state.schedules.length+1), startDay:1, threshold:80, marks:{}, customOff:[] });
+      state.cur = state.schedules.length-1; offset = 0; save(); render(); openEdit();
+    };
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  function drawCal(s, r){
+    var cal = document.getElementById("cal");
+    var names = ["일","월","화","수","목","금","토"], h = "";
+    for(var i=0;i<7;i++) h += '<div class="dow' + (i===0?" s":i===6?" t":"") + '">'+names[i]+'</div>';
+    var first = addDays(r.start, -r.start.getDay());
+    var last = addDays(r.end, 6 - r.end.getDay());
+    var todayKey = ymd(new Date());
+    for(var d=new Date(first.getTime()); d<=last; d=addDays(d,1)){
+      var k = ymd(d), cls = "cell", tag = "";
+      if(d < r.start || d > r.end) cls += " out";
+      else if(!isBusinessDay(d, s.customOff)) { cls += " off"; if(isHoliday(d)) cls += " hol"; }
+      else {
+        var m = s.marks[k];
+        if(m){ cls += " m-" + m; tag = MARK_LABEL[m]; }
+      }
+      if(k === todayKey) cls += " today";
+      h += '<div class="'+cls+'" data-k="'+k+'"><span>'+d.getDate()+'</span>'
+         + (tag ? '<span class="tag">'+tag+'</span>' : '') + '</div>';
+    }
+    cal.innerHTML = h;
+    [].forEach.call(cal.querySelectorAll(".cell"), function(el){
+      var timer=null, longed=false;
+      function toggleMark(){
+        var k = el.dataset.k, d = parseYmd(k);
+        if(d < r.start || d > r.end) return;
+        if(!isBusinessDay(d, s.customOff)) return;
+        var m = s.marks[k] || "none";
+        var n = MARK_CYCLE[(MARK_CYCLE.indexOf(m)+1) % MARK_CYCLE.length];
+        if(n === "none") delete s.marks[k]; else s.marks[k] = n;
+        save(); render();
+      }
+      function toggleOff(){
+        var k = el.dataset.k, d = parseYmd(k);
+        if(d < r.start || d > r.end) return;
+        if(d.getDay()===0 || d.getDay()===6 || isHoliday(d)) return;
+        s.customOff = s.customOff || [];
+        var i = s.customOff.indexOf(k);
+        if(i>=0) s.customOff.splice(i,1); else { s.customOff.push(k); delete s.marks[k]; }
+        save(); render();
+      }
+      var lastTouch = 0;
+      el.addEventListener("touchstart", function(){ longed=false; timer=setTimeout(function(){ longed=true; toggleOff(); },500); }, {passive:true});
+      el.addEventListener("touchmove", function(){ clearTimeout(timer); longed=true; }, {passive:true});
+      el.addEventListener("touchend", function(e){
+        clearTimeout(timer); lastTouch = Date.now();
+        if(!longed){ e.preventDefault(); toggleMark(); }
+      });
+      // 터치로 이미 처리했으면 뒤따라오는 click 은 무시 (중복 방지)
+      el.addEventListener("click", function(){ if(Date.now() - lastTouch > 600) toggleMark(); });
+      el.addEventListener("contextmenu", function(e){ e.preventDefault(); toggleOff(); });
+    });
+  }
+
+  /* ---------- 시트 ---------- */
+  var mask = document.getElementById("mask");
+  function open(el){ mask.classList.add("on"); el.classList.add("on"); }
+  function closeAll(){ mask.classList.remove("on");
+    document.getElementById("sheetEdit").classList.remove("on");
+    document.getElementById("sheetData").classList.remove("on"); }
+  mask.onclick = closeAll;
+  document.getElementById("fCancel").onclick = closeAll;
+  document.getElementById("dCancel").onclick = closeAll;
+
+  function openEdit(){
+    var s = cur(); if(!s) return;
+    document.getElementById("fName").value = s.name;
+    document.getElementById("fDay").value = s.startDay;
+    document.getElementById("fTh").value = s.threshold;
+    open(document.getElementById("sheetEdit"));
+  }
+  document.getElementById("btnEdit").onclick = openEdit;
+  document.getElementById("btnData").onclick = function(){ open(document.getElementById("sheetData")); };
+
+  document.getElementById("fSave").onclick = function(){
+    var s = cur();
+    var nm = document.getElementById("fName").value.trim();
+    var dy = parseInt(document.getElementById("fDay").value,10);
+    var th = parseFloat(document.getElementById("fTh").value);
+    if(!nm){ alert("이름을 입력하세요."); return; }
+    if(!(dy>=1 && dy<=31)){ alert("시작 날짜는 1~31 사이여야 합니다."); return; }
+    if(!(th>0 && th<=100)){ alert("기준 출석률은 1~100 사이여야 합니다."); return; }
+    s.name = nm; s.startDay = dy; s.threshold = th;
+    save(); closeAll(); render();
+  };
+  document.getElementById("fDel").onclick = function(){
+    if(state.schedules.length <= 1){ alert("스케줄은 최소 1개는 있어야 합니다."); return; }
+    if(!confirm("'" + cur().name + "' 을(를) 삭제할까요? 체크한 기록도 모두 사라집니다.")) return;
+    state.schedules.splice(state.cur,1);
+    state.cur = 0; offset = 0; save(); closeAll(); render();
+  };
+
+  document.getElementById("dExp").onclick = function(){
+    var name = "attendance-backup-" + ymd(new Date()) + ".json";
+    var text = JSON.stringify(state,null,2);
+    // APK 안에서는 안드로이드 통로로 '다운로드' 폴더에 직접 저장
+    if(window.AndroidBridge && AndroidBridge.saveText){ AndroidBridge.saveText(name, text); return; }
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], {type:"application/json"}));
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  document.getElementById("dImp").onclick = function(){ document.getElementById("dFile").click(); };
+  document.getElementById("dFile").onchange = function(e){
+    var f = e.target.files[0]; if(!f) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        var s = JSON.parse(fr.result);
+        if(!s.schedules || !s.schedules.length) throw 0;
+        state = s; state.cur = 0; offset = 0; save(); closeAll(); render();
+        alert("복원했습니다.");
+      }catch(err){ alert("이 파일은 백업 파일이 아닙니다."); }
+    };
+    fr.readAsText(f);
+    e.target.value = "";
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
