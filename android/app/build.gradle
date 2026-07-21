@@ -34,5 +34,11 @@ android {
 }
 
 dependencies {
+    // 코틀린 라이브러리 버전을 하나로 통일한다.
+    // (이게 없으면 kotlin-stdlib 1.8.22 와 kotlin-stdlib-jdk8 1.6.21 이 같이 딸려와
+    //  '중복 클래스' 오류로 빌드가 깨진다)
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.9.24')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24'
+
     implementation 'androidx.appcompat:appcompat:1.7.0'
 }
