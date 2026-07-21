@@ -21,7 +21,21 @@ android {
         }
     }
 
+    // 고정 서명키. 이게 없으면 빌드할 때마다 서명이 달라져서
+    // '기존 패키지와 충돌' 로 덮어쓰기 설치가 안 된다.
+    signingConfigs {
+        debug {
+            storeFile file('../attendance.keystore')
+            storePassword 'attendance'
+            keyAlias 'attendance'
+            keyPassword 'attendance'
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
         release {
             minifyEnabled false
         }
